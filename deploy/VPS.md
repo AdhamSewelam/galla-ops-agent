@@ -81,7 +81,7 @@ Default `SMTP_CANARY_MODE=rcpt` logs in and stops at `RCPT TO`, so nothing is se
 
 ## 9. VPS health
 `VPS_MONITOR=true` (only on this VPS). FrankenPHP has no php-fpm slow log; leave `PHP_SLOWLOG_PATH` empty unless you
-enable a slow log somewhere. Services checked: `VPS_SERVICES=caddy,frankenphp,redis-server` (missing units are ignored).
+enable a slow log somewhere. Services checked: `VPS_SERVICES=caddy,redis-server` (FrankenPHP runs inside Caddy here; missing units are ignored).
 
 ## 10. Search Console (optional)
 Reuse the ND Ops service account if you like: add its email as a **Restricted** user in each Search Console property

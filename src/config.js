@@ -58,7 +58,7 @@ const schema = z.object({
 
   // VPS health (only on the machine that hosts elgalla.com)
   VPS_MONITOR: bool(false),
-  VPS_SERVICES: z.string().default('caddy,frankenphp,redis-server'),
+  VPS_SERVICES: z.string().default('caddy,redis-server'),
   PHP_SLOWLOG_PATH: z.string().optional(),
   VPS_CPU_ALERT_PCT: z.coerce.number().default(85),
   VPS_DISK_ALERT_PCT: z.coerce.number().default(90),

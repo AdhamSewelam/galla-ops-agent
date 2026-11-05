@@ -67,7 +67,9 @@ export function detectIssues({ config, db, registry = null, now = Date.now() }) 
   if (!config.features.ai) add('no_ai', 'blocked', ['scout', 'harmony', 'owner'], 'No AI key: Scout\'s fixes, team chat and training reviews are off', 'Set GEMINI_API_KEY or ANTHROPIC_API_KEY.');
 
   // JARVIS alerts Adham doesn't acknowledge.
-  const sentAlerts = db.prepare("SELECT target FROM audit_log WHERE action = 'jarvis_alert_sent' AND ts >= ? ORDER BY id DESC LIMIT 6").all(iso(now - 14 * DAY));
+  // real alerts only: tests from the dashboard button don't count
+  const isTest = (target) => db.prepare("SELECT status FROM incidents WHERE id = ?").get(Number(String(target).split(':')[1]))?.status === 'test';
+  const sentAlerts = db.prepare("SELECT target FROM audit_log WHERE action = 'jarvis_alert_sent' AND ts >= ? ORDER BY id DESC LIMIT 30").all(iso(now - 14 * DAY)).filter((a) => !isTest(a.target)).slice(0, 6);
   if (sentAlerts.length >= 3) {
     const acked = new Set(db.prepare("SELECT target FROM audit_log WHERE action = 'jarvis_alert_acknowledged' AND ts >= ?").all(iso(now - 14 * DAY)).map((r) => r.target));
     const missed = sentAlerts.filter((a) => !acked.has(a.target)).length;
