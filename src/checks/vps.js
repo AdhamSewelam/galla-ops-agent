@@ -93,6 +93,11 @@ export function createVps({ config, db, incidents, deps = {} }) {
       if (state === 'unknown') continue; // unit not installed under that name
       await flag(`vps:service:${u}`, state !== 'active', { severity: 'critical', title: `${u} is ${state} on the VPS`, detail: { verify: [`systemctl status ${u} --no-pager | head -30`], remediate: [`systemctl restart ${u}`] } });
     }
+    // a service removed from VPS_SERVICES (or no longer installed) closes its old incident
+    for (const inc of db.prepare("SELECT key FROM incidents WHERE status = 'open' AND key LIKE 'vps:service:%'").all()) {
+      const u = inc.key.slice('vps:service:'.length);
+      if (!(u in services) || services[u] === 'unknown') await incidents.resolve(inc.key, { note: `${u} is no longer monitored.` });
+    }
     await incidents.notify(fresh);
     const out = { at: nowIso(), cpuNow: nowPct, cpuSamples: samples.slice(-15).map((s) => s.pct), load, cores, ram, disk, services, slow };
     kvSet(db, 'vps_last', JSON.stringify(out));
