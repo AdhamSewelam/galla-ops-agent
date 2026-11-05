@@ -72,10 +72,11 @@ if (isManualRun) {
   const name = process.argv[3];
   if (!jobs[name]) { console.error(`Unknown job. Available: ${Object.keys(jobs).join(', ')}`); process.exit(1); }
   if (name === 'vps') vps.startSampler();
+  const startedAt = new Date().toISOString();
   const result = await runJob(name);
   console.log(JSON.stringify(result, null, 2));
-  // JARVIS waits for your tap before emailing; in a manual run, give it the full window then exit.
-  const pending = db.prepare('SELECT COUNT(*) n FROM voice_calls WHERE email_sent = 0').get().n;
+  // JARVIS waits for your tap before emailing; if THIS run sent an alert, give it the full window then exit.
+  const pending = db.prepare('SELECT COUNT(*) n FROM voice_calls WHERE email_sent = 0 AND created_at >= ?').get(startedAt).n;
   if (pending && voice.enabled) { console.log(`Waiting ${config.JARVIS_ACK_MINUTES} min for "I'm on it" before the email goes out...`); voice.start(); await new Promise((r) => setTimeout(r, config.JARVIS_ACK_MINUTES * 60_000 + 5000)); await voice.sweep(); }
   process.exit(0);
 }
