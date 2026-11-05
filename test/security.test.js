@@ -185,3 +185,11 @@ test('page scan ignores per-request data (Cloudflare ray ids, GA product data) b
   assert.equal(normalizeScript(gtag(29042, 'Diamond Filigree Floral Ring', 60900)), normalizeScript(gtag(30173, 'Diamond Ring Band', 12000)));
   assert.notEqual(normalizeScript('s.src="https://www.googletagmanager.com/gtm.js"'), normalizeScript('s.src="https://evil-cdn.top/gtm.js"'));
 });
+
+test('pure data blocks compare by what they assign, not by their (product-specific) shape', () => {
+  const a = 'window.ga4w = { data: {"cart":{"items":[],"totals":{"currency_code":"EGP","total_price":0}},"product":{"id":32755,"name":"D","categories":[{"id":1},{"id":2}]}}, settings: {"x":true} };';
+  const b = 'window.ga4w = { data: {"cart":{"items":[{"id":9}],"totals":{"currency_code":"EGP","total_price":500}},"product":{"id":1,"name":"Ring","variations":[]}}, settings: {"x":true} };';
+  assert.equal(normalizeScript(a), normalizeScript(b));
+  assert.notEqual(normalizeScript(a), normalizeScript('window.location = "https://evil.top/";'));
+  assert.notEqual(normalizeScript(a), normalizeScript('window.ga4w = {}; fetch("https://evil.top/x")'));
+});

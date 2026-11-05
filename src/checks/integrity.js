@@ -31,13 +31,23 @@ const JS_TYPES = new Set(['', 'text/javascript', 'application/javascript', 'modu
  *  nonces, Cloudflare ray ids, timestamps, prices, product names and other string DATA.
  *  What is kept: the code structure, and the hostname of any URL inside a string, so a legit loader that
  *  suddenly points at a new domain still shows up as a new script. */
-export const NORMALIZER_VERSION = 2;
+export const NORMALIZER_VERSION = 3;
 export function normalizeScript(code) {
-  return String(code)
-    .replace(/(["'`])((?:\\.|(?!\1)[^\\\n])*)\1/g, (_m, q, body) => {
-      const hosts = [...body.matchAll(/(?:https?:)?\\?\/\\?\/([a-z0-9.-]+\.[a-z]{2,})/gi)].map((m) => m[1].toLowerCase());
-      return hosts.length ? `"URL:${[...new Set(hosts)].sort().join(',')}"` : '"S"';
-    })
+  const hostsSeen = new Set();
+  let x = String(code).replace(/(["'`])((?:\\.|(?!\1)[^\\\n])*)\1/g, (_m, q, body) => {
+    const hosts = [...body.matchAll(/(?:https?:)?\\?\/\\?\/([a-z0-9.-]+\.[a-z]{2,})/gi)].map((m) => m[1].toLowerCase());
+    hosts.forEach((h) => hostsSeen.add(h));
+    return hosts.length ? `"URL:${[...new Set(hosts)].sort().join(',')}"` : '"S"';
+  });
+  // Pure data blocks (window.ga4w = {...}, var glaGtagData = {...}): no calls, no functions, no template tags.
+  // They can't execute anything, and their shape changes with every product/cart, so compare only WHAT they
+  // assign to and which hosts they mention. (An assignment like window.location = "..." still shows as new.)
+  const code0 = x.replace(/\/\*[\s\S]*?\*\//g, '');
+  if (!/[()`]/.test(code0) && !/\b(function|import|new|eval|setTimeout|setInterval|document\.write)\b/.test(code0)) {
+    const targets = [...new Set([...code0.matchAll(/([A-Za-z_$][\w$.]*)\s*=(?![=>])/g)].map((m) => m[1]))].sort();
+    return `DATA:${targets.join(',')}|${[...hostsSeen].sort().join(',')}`;
+  }
+  return x
     .replace(/\b[0-9a-f]{8,}\b/gi, 'H') // ray ids, hashes, hex blobs
     .replace(/[A-Za-z0-9+/_-]{24,}={0,2}/g, 'T') // tokens, base64 blobs
     .replace(/\d+(?:\.\d+)?/g, '0') // numbers: prices, ids, timestamps
