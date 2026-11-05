@@ -18,7 +18,9 @@ export function createMailer(config, db, { transport = undefined } = {}) {
   const t = transport !== undefined
     ? transport
     : config.features.email
-      ? nodemailer.createTransport({ host: config.SMTP_HOST, port: config.SMTP_PORT, secure: config.SMTP_PORT === 465, auth: { user: config.SMTP_USER, pass: config.SMTP_PASS } })
+      ? nodemailer.createTransport({ host: config.SMTP_HOST, port: config.SMTP_PORT, secure: config.SMTP_PORT === 465, auth: { user: config.SMTP_USER, pass: config.SMTP_PASS },
+          // never let a stuck mail server hang a job (nodemailer's default socket timeout is 10 minutes)
+          connectionTimeout: 20000, greetingTimeout: 15000, socketTimeout: 30000 })
       : null;
   const outbox = []; // last few messages, for tests and the dashboard
 

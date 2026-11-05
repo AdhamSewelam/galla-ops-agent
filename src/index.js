@@ -52,11 +52,18 @@ const jobs = {
 jobs.sentinel.evaluate = (host) => sentinel.evaluate(host);
 
 const running = new Set();
+const JOB_LIMIT_MIN = { uptime: 4, integrity: 12, vps: 5, orders: 20, sentinel: 20, keeper: 30, products: 30, daily: 15, seo: 90, hr: 10, training: 15 };
 async function runJob(name) {
   if (running.has(name)) return null;
   running.add(name);
   try {
-    const result = await jobs[name]();
+    // a job that hangs must not block its own next runs forever (one run at a time per job)
+    const limitMs = (JOB_LIMIT_MIN[name] || 10) * 60_000;
+    let timer;
+    const result = await Promise.race([
+      jobs[name](),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`timed out after ${limitMs / 60_000} min`)), limitMs); timer.unref?.(); }),
+    ]).finally(() => clearTimeout(timer));
     audit(db, { action: `job_${name}`, detail: result == null ? null : { result: JSON.stringify(result).slice(0, 800) } });
     return result;
   } catch (e) {
