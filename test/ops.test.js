@@ -248,3 +248,16 @@ test('VPS: sustained CPU means 13+ of the last 15 minutes over the threshold', (
   assert.equal(sustainedHigh(mk([...Array(10).fill(95), 40, 40, 40, 95, 95]), 85, 15, now), false);
   assert.equal(sustainedHigh(mk(Array(5).fill(99)), 85, 15, now), false, 'not enough samples yet');
 });
+
+test('office simulator state comes only from records', async () => {
+  const { officeState } = await import('../src/office/model.js');
+  const s = setup();
+  s.incidents.open({ key: 'integrity:jbg:eg-en:home:marker:cfm-main', brand: 'jbg', category: 'security', title: 'cfm-main' });
+  const st = officeState({ config: s.config, db: s.db, registry: s.registry });
+  const byId = Object.fromEntries(st.people.map((p) => [p.id, p]));
+  assert.equal(st.people.length, 9);
+  assert.equal(byId.warden.activity, 'incident');
+  assert.equal(byId.owner.tasks.length, 1);
+  assert.equal(byId.ledger.activityText, 'Not connected (no read-only WooCommerce keys)');
+  assert.equal(st.departments.find((d) => d.id === 'finance').kpi, 'Not connected');
+});

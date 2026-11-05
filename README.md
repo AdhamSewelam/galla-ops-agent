@@ -35,6 +35,12 @@ alerts with voice, password-protected Command Center, rate-limited team chat, HR
   the dashboard login, POST only. If a newer report changes the content, the old link is refused.
 - **Append-only** activity log (DB triggers), secrets redacted by key and by value in logs, emails, dashboard.
 
+## Office Simulator
+`/dashboard/office`: the pixel-art office from ND Ops. **Live** mode places Adham and the 8 agents at their desks
+(Security & Tech: Warden, Keeper · Operations: Sentinel, Harmony, Curator · Finance: Ledger · Marketing: Scout ·
+Executive: JARVIS) with status icons built only from records: running jobs, open incidents, failed runs, handoffs
+(e.g. Warden → Adham for a page baseline), and what is waiting on Adham. **Demo** mode is fictional and labelled.
+
 ## Host sentinel
 `sentinel/galla-sentinel.php` + `.sh`: hourly via hPanel cron (shared) and root cron (VPS). Collects admins, application
 passwords (metadata only), mu-plugins, drop-ins, plugins/themes + `functions.php` hashes, core checksums (fetched from

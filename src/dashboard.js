@@ -17,6 +17,11 @@ import { latestReport, lastCheckIn } from './sentinel/ingest.js';
 import { incidentDetail } from './incidents.js';
 import { kvJson } from './db.js';
 import { ago, cairo } from './util.js';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { officeState } from './office/model.js';
+
+const OFFICE_JS = fileURLToPath(new URL('./office/client.js', import.meta.url));
 
 const COOKIE = 'galla_session';
 const SESSION_DAYS = 7;
@@ -159,6 +164,11 @@ export function mountDashboard(app, { config, db, registry, jobState = null, voi
 
   mountTeam(app, { config, db, registry, jobState, claude, mailer, requireAuth, csrf, safeEq, shell, viewSwitch });
 
+  // ── Office Simulator (live data from records + clearly labelled demo) ──
+  app.get('/dashboard/office', requireAuth, (req, res) => res.send(officePage()));
+  app.get('/dashboard/office.js', requireAuth, (req, res) => res.type('application/javascript').send(fs.readFileSync(OFFICE_JS, 'utf8')));
+  app.get('/dashboard/api/office', requireAuth, (req, res) => res.json(officeState({ config, db, registry, jobState })));
+
   function statusJson() {
     return { brands: registry.brands.map((b) => { const s = brandStatus({ config, db, registry, brand: b }); return { id: b.id, open: s.open.length, critical: s.open.filter((i) => i.severity === 'critical').length, uptimeToday: s.uptimeToday }; }) };
   }
@@ -282,8 +292,78 @@ ${msg ? `<div class="flash">${esc(msg)}</div>` : ''}
 }
 
 export function viewSwitch(active) {
-  return `<nav class="views" aria-label="Views"><a href="/dashboard" class="${active === 'ops' ? 'on' : ''}">Operations</a><a href="/dashboard/team" class="${active === 'team' ? 'on' : ''}">Team</a></nav>`;
+  return `<nav class="views" aria-label="Views"><a href="/dashboard" class="${active === 'ops' ? 'on' : ''}">Operations</a><a href="/dashboard/team" class="${active === 'team' ? 'on' : ''}">Team</a><a href="/dashboard/office" class="${active === 'office' ? 'on' : ''}">Office</a></nav>`;
 }
+
+function officePage() {
+  return shell('Office Simulator', `
+${viewSwitch('office')}
+<div id="stage" class="stage">
+  <div class="toolbar" role="toolbar" aria-label="Office controls">
+    <div class="seg" role="group" aria-label="Mode"><button id="modeLive" aria-pressed="true">Live Operations</button><button id="modeDemo" aria-pressed="false">Demo</button></div>
+    <span id="demoCtl" hidden><button id="play" aria-pressed="false">Pause</button>
+      <label class="sr" for="speed">Speed</label><select id="speed" aria-label="Simulation speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
+      <button id="reset">Reset</button></span>
+    <span class="grp"><button id="zout" aria-label="Zoom out">−</button><button id="zin" aria-label="Zoom in">+</button><button id="fit">Fit</button></span>
+    <select id="dept" aria-label="Department filter"></select>
+    <select id="type" aria-label="People filter"><option value="all">Everyone</option><option value="human">Humans</option><option value="agent">AI agents</option></select>
+    <input id="q" type="search" placeholder="Search name or task" aria-label="Search by name or task">
+    <label class="chk"><input id="alerts" type="checkbox" checked> Alerts</label>
+    <label class="chk"><input id="links" type="checkbox"> Reporting lines</label>
+    <button id="legendBtn" aria-controls="legend">Legend</button>
+    <button id="full" aria-label="Full screen">⛶</button>
+  </div>
+  <div id="status" class="status" role="status" aria-live="polite">Loading…</div>
+  <div class="canvas-wrap">
+    <canvas id="office" aria-label="Pixel-art office. Click a person or a room for details." tabindex="0"></canvas>
+    <aside id="panel" class="panel" hidden></aside>
+    <div id="legend" class="legend" hidden>
+      <b>Above heads</b>
+      <div><i class="ic blue"></i> Working now (job running)</div>
+      <div><i class="ic red"></i> Open incident</div>
+      <div><i class="ic orange"></i> Last run failed</div>
+      <div><i class="ic green"></i> Handoff (e.g. baseline → your approval)</div>
+      <div><i class="ic gold"></i> Waiting for your decision</div>
+      <div><i class="ic white"></i> Scheduled / waiting for next run</div>
+      <div><i class="ic white">?</i> Activity not tracked</div>
+      <div><span class="tagai">AI</span> AI agent · white tag = human</div>
+      <p class="muted small">Live mode shows only recorded facts. Movement is a visual aid, not tracking.</p>
+    </div>
+  </div>
+</div>
+<script src="/dashboard/office.js" defer></script>`, OFFICE_CSS);
+}
+
+const OFFICE_CSS = `
+main{max-width:none;padding:12px 16px 16px}
+.stage{display:flex;flex-direction:column;height:calc(100vh - 80px);min-height:520px;background:var(--bg)}
+.stage:fullscreen{height:100vh;padding:10px}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
+.toolbar button,.toolbar select,.toolbar input[type=search]{font:600 13px Inter,sans-serif;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:7px 10px;margin:0;width:auto}
+.toolbar input[type=search]{font-weight:400;min-width:170px}
+.seg{display:inline-flex}.seg button{border-radius:0}.seg button:first-child{border-radius:8px 0 0 8px}.seg button:last-child{border-radius:0 8px 8px 0;margin-left:-1px}
+.toolbar button[aria-pressed=true]{background:var(--ink2);color:#f6f7fa;border-color:var(--ink2)}
+.grp{display:inline-flex;gap:4px}.chk{font-size:13px;display:inline-flex;gap:5px;align-items:center}.chk input{width:auto;margin:0}
+.sr{position:absolute;left:-9999px}
+.status{font-size:13px;padding:7px 12px;border-radius:8px;margin-bottom:8px;background:var(--card);border:1px solid var(--line)}
+.status.good{border-left:4px solid var(--good)}.status.warn{border-left:4px solid var(--gold2)}.status.bad{border-left:4px solid var(--bad)}.status.demo{background:#c79868;color:#0b1220;font-weight:600;border-color:#c79868}
+.canvas-wrap{position:relative;flex:1;min-height:0;border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+#office{width:100%;height:100%;display:block;cursor:grab;image-rendering:pixelated;touch-action:none}
+.panel{position:absolute;top:10px;right:10px;bottom:10px;width:min(360px,calc(100% - 20px));overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.panel h2{margin:0;font-size:18px}.panel h3{margin:16px 0 6px}.panel dl{display:grid;grid-template-columns:110px 1fr;gap:6px 10px;font-size:13.5px}.panel dt{color:var(--muted)}.panel dd{margin:0}
+.panel a{color:var(--gold)}.panel .x{position:absolute;top:8px;right:8px;background:transparent;color:var(--text);font-size:22px;padding:2px 8px}
+.ph{display:flex;gap:12px;align-items:center;margin-bottom:8px}.av{width:42px;height:42px;border-radius:10px;display:grid;place-items:center;font-weight:700;background:var(--line)}.av.agent{background:#c79868;color:#0b1220}
+.row{display:flex;gap:6px;margin:6px 0}.pill.gold{background:rgba(199,152,104,.25);color:var(--warn)}
+.tasks,.log,.bars{list-style:none;padding:0;margin:0}.tasks li{padding:7px 0;border-top:1px solid var(--line)}.tasks li span{display:block;font-size:12.5px;color:var(--muted)}
+.log li{font-size:12.5px;padding:3px 0}.log li span{color:var(--muted);display:inline-block;min-width:78px}
+.bars li{display:grid;grid-template-columns:110px 1fr 24px;gap:8px;align-items:center;font-size:12.5px;padding:3px 0}.bars i{display:block;height:8px;border-radius:4px;background:var(--gold2);min-width:2px}
+.actions{margin-top:16px;display:flex;flex-wrap:wrap;gap:8px}.btn{display:inline-block;padding:8px 12px;border-radius:8px;background:var(--good);color:#fff!important;text-decoration:none;font:600 13px Inter,sans-serif;border:0}.btn.ghost{background:transparent;color:var(--text)!important;border:1px solid var(--line)}
+.demo{background:#c79868;color:#0b1220;font-weight:700;font-size:12px;padding:4px 8px;border-radius:6px;display:inline-block;margin-bottom:8px}
+.legend{position:absolute;left:10px;bottom:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:12.5px;max-width:280px}.legend div{margin:4px 0}
+.ic{display:inline-block;width:12px;height:10px;border:1.5px solid #1d222c;vertical-align:middle;margin-right:6px;font-size:8px;line-height:7px;text-align:center;font-style:normal}
+.ic.blue{background:#3f78b5}.ic.red{background:#d9534f}.ic.orange{background:#e08a2b}.ic.green{background:#2e7d5b}.ic.gold{background:#c79868}.ic.white{background:#fff;color:#1d222c}
+.tagai{background:#c79868;color:#0b1220;font-weight:700;font-size:10px;padding:1px 5px;border-radius:3px;margin-right:4px}
+@media (max-width:700px){.stage{height:calc(100vh - 60px)}.toolbar input[type=search]{min-width:120px;flex:1}}`;
 
 function loginForm(error, next) {
   return `<div class="login"><div class="brand">Galla Ops</div><p class="muted">Command Center</p>
