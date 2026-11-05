@@ -43,7 +43,7 @@ export function buildUptimeChecks(registry, { productUrl = () => null } = {}) {
       for (const l of localesOf(s)) {
         const tag = `${s.id}${l.lang ? '-' + l.lang : ''}`;
         add(`${tag}:home`, `${placeLabel(b, s, l)} homepage`, base + l.path, (r) => assertPage(r, 'html'), s);
-        add(`${tag}:shop`, `${placeLabel(b, s, l)} shop page`, base + l.path + s.shopPath, (r) => {
+        add(`${tag}:shop`, `${placeLabel(b, s, l)} shop page`, base + l.path + (l.shopPath ?? s.shopPath), (r) => {
           assertPage(r, 'html');
           if (!/woocommerce|products|product-/i.test(r.body)) throw Object.assign(new Error('shop page rendered without products markup'), { kind: 'origin' });
         }, s);

@@ -7,7 +7,8 @@ import { z } from 'zod';
 const envName = z.string().regex(/^[A-Z][A-Z0-9_]*$/, 'must be an ENV_VAR_NAME');
 const relPath = z.string().regex(/^\/(?:[^\s?#]*\/)?$/, 'must start and end with "/" (e.g. "/eg/en/")');
 
-const locale = z.object({ lang: z.string().min(2).max(5), path: relPath });
+// shopPath per language overrides the site's (WPML translates slugs, e.g. Arabic shop page)
+const locale = z.object({ lang: z.string().min(2).max(5), path: relPath, shopPath: z.string().optional() });
 
 const site = z.object({
   id: z.string().regex(/^[a-z0-9-]+$/),
@@ -87,7 +88,7 @@ export const hostById = (reg, id) => reg.hosts.find((h) => h.id === id) || null;
 
 /** Every place a visitor lands: one entry per locale (or one per site when single-language). */
 export function localesOf(site) {
-  return site.locales.length ? site.locales.map((l) => ({ lang: l.lang, path: l.path })) : [{ lang: null, path: site.path }];
+  return site.locales.length ? site.locales.map((l) => ({ lang: l.lang, path: l.path, shopPath: l.shopPath })) : [{ lang: null, path: site.path }];
 }
 
 /** Human label like "JBG /eg/ar" */
