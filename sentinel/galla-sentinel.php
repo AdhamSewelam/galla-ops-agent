@@ -28,6 +28,7 @@ const MAX_SCAN_BYTES = 25 * 1024 * 1024;
 const MARKERS = [
     'SC_TH_BEGIN', 'SC_DB_BEGIN', 'haven-engine-go', 'unity-recorder-evo', 'lunar-cache-ops',
     'trace-updater-go', 'surge-panel', 'craft-keeper-ink', 'vital-publisher', 'cfm-main', 'admetricslab',
+    'sc_payload_persistent', 'sc_persist_manifest', 'cu29o_ffzkq2ih2', 'i60vbr114u4plgp8_4vh',
 ];
 // NOTE: 'getServers(' is NOT a file marker: legitimate libraries (Google API client) define getServers() methods.
 // It is still checked in served page HTML by the page-integrity scan, where it is a real ClickFix signal.
@@ -232,7 +233,7 @@ function collect_install(array $inst, Cache $cache, array $cfg): array {
             // suspicious options: known payload names, markers inside values, and very large autoloaded options
             $markerLike = implode(' OR ', array_fill(0, count(MARKERS), 'option_value LIKE ?'));
             $params = array_map(fn($m) => '%' . $m . '%', MARKERS);
-            $rows = $db->q("SELECT option_name, LENGTH(option_value) AS len, autoload FROM `$op` WHERE option_name LIKE 'wq\\_%' OR option_name LIKE '%\\_payload\\_persistent' OR $markerLike", $params);
+            $rows = $db->q("SELECT option_name, LENGTH(option_value) AS len, autoload FROM `$op` WHERE option_name LIKE 'wq\\_%' OR option_name LIKE '%\\_payload\\_persistent' OR option_name LIKE 'sc\\_persist%' OR $markerLike", $params);
             foreach ($rows as $r) $out['suspicious_options'][] = ['blog_id' => $b['blog_id'], 'name' => $r['option_name'], 'len' => (int)$r['len'], 'autoload' => $r['autoload'], 'reason' => 'pattern'];
             foreach ($db->q("SELECT option_name, LENGTH(option_value) AS len, autoload FROM `$op` WHERE autoload IN ('yes','on','auto','auto-on') AND LENGTH(option_value) > 262144 ORDER BY len DESC LIMIT 15") as $r)
                 $out['suspicious_options'][] = ['blog_id' => $b['blog_id'], 'name' => $r['option_name'], 'len' => (int)$r['len'], 'autoload' => $r['autoload'], 'reason' => 'large_autoload'];

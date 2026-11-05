@@ -10,6 +10,11 @@
 import { shq } from '../util.js';
 
 export const BANNED_PLUGINS = ['wp-file-manager', 'file-manager-advanced', 'file-manager', 'wp-file-manager-pro', 'fileorganizer', 'filester', 'advanced-file-manager'];
+// PHP files plugins legitimately keep in uploads and rotate constantly: they would alert every day.
+// Still scanned for malware markers; just not reported as "new PHP in uploads".
+export const UPLOADS_PHP_IGNORE = /\/cache\/wpml\/twig\/[0-9a-f]{2}\/[0-9a-f]{64}\.php$|\/paymob-private-logs\/paymob-[\w.-]+\.php$/;
+// WPML string-translation queue files are literally named ".php"
+export const HIDDEN_PHP_IGNORE = /^languages\/wpml\/queue\/\d+\/\.php$/;
 export const KNOWN_DROPIN_USERS = { 'object-cache.php': 'Redis Object Cache', 'advanced-cache.php': 'WP Rocket / page cache' };
 
 const byKey = (arr, f) => Object.fromEntries((arr || []).map((x) => [f(x), x]));
@@ -29,7 +34,7 @@ export function snapshotOf(report) {
       dropins: Object.fromEntries((i.dropins || []).map((d) => [d.file, d.sha256]).sort()),
       plugins: (i.plugins || []).map((p) => p.slug).sort(),
       themeFunctions: Object.fromEntries((i.themes || []).filter((t) => t.functions_sha256).map((t) => [t.stylesheet, t.functions_sha256]).sort()),
-      uploadsPhp: (i.uploads_php || []).map((u) => u.file).sort(),
+      uploadsPhp: (i.uploads_php || []).map((u) => u.file).filter((f) => !UPLOADS_PHP_IGNORE.test(f)).sort(),
       zips: (i.zips || []).map((z) => z.file).sort(),
       contentRoot: Object.fromEntries((i.wp_content_root || []).map((f) => [f.file, f.sha256]).sort()),
       rootOwned: i.root_owned?.count ?? null,
@@ -116,7 +121,7 @@ export function analyzeReport(report, baseline = null, { expectedSentinelSha = n
     } else if (i.core?.error) {
       add({ id: 'core_unverified', install: i.id, type: 'core_unverified', severity: 'medium', title: `Core checksums not verified on ${i.id}: ${i.core.error}`, where: i.path });
     }
-    for (const h of (i.hidden_php || []).filter((h) => !(i.core?.extra || []).includes(h))) {
+    for (const h of (i.hidden_php || []).filter((h) => !(i.core?.extra || []).includes(h) && !HIDDEN_PHP_IGNORE.test(h))) {
       const full = h.startsWith('../') ? `${i.path}/${h.slice(3)}` : /^wp-(admin|includes)\//.test(h) ? `${i.path}/${h}` : `${content}/${h}`;
       const hexName = /(^|\/)\.(g_)?[0-9a-f]{6,}\.php$/.test(h);
       add({ id: `hidden:${h}`, todo: hexName ? 'Random-hex hidden PHP file: the same pattern as the .g_<hex>.php daemons. Check what recreates it (ctime, other files referencing the name) BEFORE deleting.' : 'Hidden PHP files are rarely legitimate. Inspect it.',
@@ -185,7 +190,7 @@ export function analyzeReport(report, baseline = null, { expectedSentinelSha = n
         verify: [`sha256sum ${shq(full)}`, `grep -n -E 'SC_TH_BEGIN|base64_decode|gzinflate|str_rot13|eval\\(|getServers' ${shq(full)} | head`, `tail -c 2000 ${shq(full)}`],
         remediate: [evidenceCopy(full), `# remove the injected block, e.g.: sed -i '/SC_TH_BEGIN/,/SC_TH_END/d' ${shq(full)}`] });
     }
-    for (const f of diffSet((i.uploads_php || []).map((u) => u.file), base?.uploadsPhp)) {
+    for (const f of diffSet((i.uploads_php || []).map((u) => u.file).filter((x) => !UPLOADS_PHP_IGNORE.test(x)), base?.uploadsPhp)) {
       const full = `${content}/${f}`;
       B({ id: `upphp:${f}`, install: i.id, type: 'uploads_php', title: `${hasBaseline ? 'New' : 'Existing'} PHP file in uploads: ${f}`, where: full,
         todo: 'Uploads should never contain PHP. Exploit zips unpacked here before.', verify: [`ls -la ${shq(full)} && head -c 400 ${shq(full)}`],
@@ -199,7 +204,7 @@ export function analyzeReport(report, baseline = null, { expectedSentinelSha = n
     }
     for (const { k, isNew } of changedMap(Object.fromEntries((i.wp_content_root || []).map((f) => [f.file, f.sha256])), base?.contentRoot)) {
       if (k in (Object.fromEntries((i.dropins || []).map((d) => [d.file, 1])))) continue; // reported as drop-in
-      if ((i.hidden_php || []).includes(k)) continue; // reported as hidden PHP
+      if ((i.hidden_php || []).includes(k) && !HIDDEN_PHP_IGNORE.test(k)) continue; // reported as hidden PHP
       const full = `${content}/${k}`;
       B({ id: `croot:${k}`, install: i.id, type: 'content_root', severity: /\.php\d?$/i.test(k) ? 'critical' : 'high', title: `${!hasBaseline ? 'Existing' : isNew ? 'New' : 'Changed'} file in wp-content root: ${k}`, where: full,
         verify: [`ls -la ${shq(full)} && head -c 400 ${shq(full)}`], remediate: [evidenceCopy(full), `rm -f ${shq(full)}`] });
