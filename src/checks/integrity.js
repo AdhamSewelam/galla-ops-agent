@@ -31,7 +31,7 @@ const JS_TYPES = new Set(['', 'text/javascript', 'application/javascript', 'modu
  *  nonces, Cloudflare ray ids, timestamps, prices, product names and other string DATA.
  *  What is kept: the code structure, and the hostname of any URL inside a string, so a legit loader that
  *  suddenly points at a new domain still shows up as a new script. */
-export const NORMALIZER_VERSION = 3;
+export const NORMALIZER_VERSION = 4;
 export function normalizeScript(code) {
   const hostsSeen = new Set();
   let x = String(code).replace(/(["'`])((?:\\.|(?!\1)[^\\\n])*)\1/g, (_m, q, body) => {
@@ -46,6 +46,14 @@ export function normalizeScript(code) {
   if (!/[()`]/.test(code0) && !/\b(function|import|new|eval|setTimeout|setInterval|document\.write)\b/.test(code0)) {
     const targets = [...new Set([...code0.matchAll(/([A-Za-z_$][\w$.]*)\s*=(?![=>])/g)].map((m) => m[1]))].sort();
     return `DATA:${targets.join(',')}|${[...hostsSeen].sort().join(',')}`;
+  }
+  // Collapse data literals: any innermost {...} or [...] with no calls, arrows or statements is data
+  // (product lists, cart totals, settings). Repeat until nothing changes, so nested JSON folds to one "O".
+  // Code blocks contain ( ) ; or => and are left intact, so injected logic still changes the hash.
+  for (let i = 0; i < 50; i++) {
+    const y = x.replace(/[{[][^{}[\]();]*?[}\]]/g, (m) => (/=>|\bfunction\b/.test(m) ? m : 'O'));
+    if (y === x) break;
+    x = y;
   }
   return x
     .replace(/\b[0-9a-f]{8,}\b/gi, 'H') // ray ids, hashes, hex blobs

