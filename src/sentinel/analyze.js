@@ -117,8 +117,10 @@ export function analyzeReport(report, baseline = null, { expectedSentinelSha = n
       add({ id: 'core_unverified', install: i.id, type: 'core_unverified', severity: 'medium', title: `Core checksums not verified on ${i.id}: ${i.core.error}`, where: i.path });
     }
     for (const h of (i.hidden_php || []).filter((h) => !(i.core?.extra || []).includes(h))) {
-      const full = h.startsWith('wp-') ? `${i.path}/${h}` : `${content}/${h}`;
-      add({ id: `hidden:${h}`, install: i.id, type: 'hidden_php', title: `Hidden PHP file ${h}`, where: full, verify: [`ls -la ${shq(full)} && head -c 400 ${shq(full)}`], remediate: [evidenceCopy(full), `rm -f ${shq(full)}`] });
+      const full = h.startsWith('../') ? `${i.path}/${h.slice(3)}` : /^wp-(admin|includes)\//.test(h) ? `${i.path}/${h}` : `${content}/${h}`;
+      const hexName = /(^|\/)\.(g_)?[0-9a-f]{6,}\.php$/.test(h);
+      add({ id: `hidden:${h}`, todo: hexName ? 'Random-hex hidden PHP file: the same pattern as the .g_<hex>.php daemons. Check what recreates it (ctime, other files referencing the name) BEFORE deleting.' : 'Hidden PHP files are rarely legitimate. Inspect it.',
+        evidence: [h], install: i.id, type: 'hidden_php', title: `Hidden PHP file ${h}`, where: full, verify: [`ls -la --time-style=full-iso ${shq(full)}; stat -c 'ctime %z' ${shq(full)}; head -c 400 ${shq(full)}`, `grep -rl --include=*.php ${shq(h.split('/').pop().replace(/\.php$/, ''))} ${shq(i.path)} | head`], remediate: [evidenceCopy(full), `rm -f ${shq(full)}`] });
     }
 
     // ── BASELINE ── (skipped for DB-derived items when the database couldn't be read)
@@ -197,6 +199,7 @@ export function analyzeReport(report, baseline = null, { expectedSentinelSha = n
     }
     for (const { k, isNew } of changedMap(Object.fromEntries((i.wp_content_root || []).map((f) => [f.file, f.sha256])), base?.contentRoot)) {
       if (k in (Object.fromEntries((i.dropins || []).map((d) => [d.file, 1])))) continue; // reported as drop-in
+      if ((i.hidden_php || []).includes(k)) continue; // reported as hidden PHP
       const full = `${content}/${k}`;
       B({ id: `croot:${k}`, install: i.id, type: 'content_root', severity: /\.php\d?$/i.test(k) ? 'critical' : 'high', title: `${!hasBaseline ? 'Existing' : isNew ? 'New' : 'Changed'} file in wp-content root: ${k}`, where: full,
         verify: [`ls -la ${shq(full)} && head -c 400 ${shq(full)}`], remediate: [evidenceCopy(full), `rm -f ${shq(full)}`] });

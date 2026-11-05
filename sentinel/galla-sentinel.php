@@ -34,6 +34,10 @@ const DROPINS = [
     'php-error.php', 'fatal-error-handler.php', 'sunrise.php', 'blog-deleted.php', 'blog-inactive.php', 'blog-suspended.php',
 ];
 const PHP_EXT = '/\.(php\d?|phtml|phar|pht|inc)$/i';
+// developer config dotfiles shipped inside vendor libraries: not hidden backdoors
+const DEV_DOTFILES = '/^\.(php[-_]cs[-_]fixer(\.dist)?|php_cs(\.dist)?|phpstorm\.meta|phpunit\.result)(\.php)?$/i';
+/** glob() skips dotfiles; this returns both. */
+function glob_all(string $dir, string $pattern): array { return array_values(array_unique(array_merge(glob("$dir/$pattern", GLOB_NOSORT) ?: [], glob("$dir/.$pattern", GLOB_NOSORT) ?: []))); }
 
 // ───────────────────────── helpers ─────────────────────────
 
@@ -307,7 +311,7 @@ function collect_install(array $inst, Cache $cache, array $cfg): array {
         if (preg_match('/\.zip$/i', $b)) $out['zips'][] = ['file' => $r, 'size' => $f->getSize(), 'mtime' => gmdate('c', $f->getMTime())];
         $isPhp = (bool)preg_match(PHP_EXT, $b);
         if ($isPhp && strpos($r, 'uploads/') === 0) $out['uploads_php'][] = ['file' => $r, 'size' => $f->getSize(), 'mtime' => gmdate('c', $f->getMTime())];
-        if ($isPhp && $b[0] === '.') $out['hidden_php'][] = $r;
+        if ($isPhp && $b[0] === '.' && !preg_match(DEV_DOTFILES, $b)) $out['hidden_php'][] = $r;
         $isThemeAsset = (bool)preg_match('/\.(js|html?)$/i', $b) && strpos($r, 'themes/') === 0;
         if ($isPhp || $isThemeAsset) {
             foreach (scan_markers($path, $f, $cache) as $m) $out['markers'][] = ['file' => $r, 'marker' => $m];
@@ -318,9 +322,9 @@ function collect_install(array $inst, Cache $cache, array $cfg): array {
     }, $skip);
     $out['wp_content_files'] = $files;
     // root PHP files (wp-config.php, index.php, ...) read as text for markers only
-    foreach (glob("$root/*.php", GLOB_NOSORT) ?: [] as $f) foreach (scan_markers($f, new SplFileInfo($f), $cache) as $m) $out['markers'][] = ['file' => '../' . basename($f), 'marker' => $m];
+    foreach (glob_all($root, '*.php') as $f) foreach (scan_markers($f, new SplFileInfo($f), $cache) as $m) $out['markers'][] = ['file' => '../' . basename($f), 'marker' => $m];
     $out['wp_content_root'] = [];
-    foreach (glob("$content/*", GLOB_NOSORT) ?: [] as $f) if (is_file($f)) $out['wp_content_root'][] = ['file' => basename($f), 'size' => filesize($f), 'sha256' => $cache->get($f, new SplFileInfo($f), 'h', fn() => hash_file('sha256', $f))];
+    foreach (glob_all($content, '*') as $f) if (is_file($f)) $out['wp_content_root'][] = ['file' => basename($f), 'size' => filesize($f), 'sha256' => $cache->get($f, new SplFileInfo($f), 'h', fn() => hash_file('sha256', $f))];
 
     // ── core checksums against api.wordpress.org (no WP-CLI: WP-CLI boots WordPress) ──
     $out['core'] = ['ok' => null, 'modified' => [], 'missing' => [], 'extra' => [], 'error' => null];
@@ -342,15 +346,22 @@ function collect_install(array $inst, Cache $cache, array $cfg): array {
             foreach (['wp-admin', 'wp-includes'] as $d) {
                 walk("$root/$d", function ($path) use (&$out, $root, $sums) { $r = rel($root, $path); if (!isset($sums[$r])) $out['core']['extra'][] = $r; });
             }
-            foreach (glob("$root/*.php", GLOB_NOSORT) ?: [] as $f) { $r = basename($f); if (!isset($sums[$r]) && $r !== 'wp-config.php') $out['core']['extra'][] = $r; }
-            foreach ($out['core']['extra'] as $x) if (preg_match('#(^|/)\.[^/]+\.php$#', $x)) $out['hidden_php'][] = $x;
+            foreach (glob_all($root, '*.php') as $f) {
+                $r = basename($f);
+                if (isset($sums[$r]) || $r === 'wp-config.php') continue;
+                // Wordfence's firewall loader lives in the site root by design (only if it really is Wordfence's)
+                if ($r === 'wordfence-waf.php' && stripos((string)@file_get_contents($f, false, null, 0, 4096), 'Wordfence') !== false) { $out['known_root_files'][] = $r; continue; }
+                $out['core']['extra'][] = $r;
+            }
+            foreach ($out['core']['extra'] as $x) if (preg_match('#(^|/)\.[^/]+\.php$#', $x) && !in_array($x, $out['hidden_php'], true)) $out['hidden_php'][] = $x;
             $out['core']['ok'] = !$out['core']['modified'] && !$out['core']['extra'];
         }
     }
     // hidden .php files in core dirs (the .g_<hex>.php daemons) even when checksums couldn't be fetched
     foreach (['wp-admin', 'wp-includes'] as $d) {
-        walk("$root/$d", function ($path) use (&$out, $root) { $r = rel($root, $path); if (preg_match('#(^|/)\.[^/]+\.php$#', $r) && !in_array($r, $out['hidden_php'], true)) $out['hidden_php'][] = $r; });
+        walk("$root/$d", function ($path) use (&$out, $root) { $r = rel($root, $path); if (preg_match('#(^|/)\.[^/]+\.php$#', $r) && !preg_match(DEV_DOTFILES, basename($r)) && !in_array($r, $out['hidden_php'], true)) $out['hidden_php'][] = $r; });
     }
+    foreach (glob("$root/.*.php", GLOB_NOSORT) ?: [] as $f) { $r = '../' . basename($f); if (!in_array($r, $out['hidden_php'], true)) $out['hidden_php'][] = $r; }
     return $out;
 }
 
