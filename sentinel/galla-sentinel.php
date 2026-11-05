@@ -27,8 +27,10 @@ const MAX_SCAN_BYTES = 25 * 1024 * 1024;
 
 const MARKERS = [
     'SC_TH_BEGIN', 'SC_DB_BEGIN', 'haven-engine-go', 'unity-recorder-evo', 'lunar-cache-ops',
-    'trace-updater-go', 'surge-panel', 'craft-keeper-ink', 'vital-publisher', 'getServers(', 'cfm-main', 'admetricslab',
+    'trace-updater-go', 'surge-panel', 'craft-keeper-ink', 'vital-publisher', 'cfm-main', 'admetricslab',
 ];
+// NOTE: 'getServers(' is NOT a file marker: legitimate libraries (Google API client) define getServers() methods.
+// It is still checked in served page HTML by the page-integrity scan, where it is a real ClickFix signal.
 const DROPINS = [
     'advanced-cache.php', 'db.php', 'db-error.php', 'install.php', 'maintenance.php', 'object-cache.php',
     'php-error.php', 'fatal-error-handler.php', 'sunrise.php', 'blog-deleted.php', 'blog-inactive.php', 'blog-suspended.php',
@@ -204,8 +206,9 @@ function collect_install(array $inst, Cache $cache, array $cfg): array {
     $out['sites'] = []; $out['admins'] = []; $out['app_passwords'] = []; $out['cron_hooks'] = [];
     $out['suspicious_options'] = []; $out['active_plugins'] = []; $out['active_themes'] = [];
 
-    // ── database (read-only) ──
-    try {
+    // ── database (read-only) ──  "skip_db": true in config for an install whose DB isn't reachable from this host
+    if (!empty($inst['skip_db'])) $out['db_skipped'] = true;
+    else try {
         $db = new RoDb($wc);
         $blogs = [['blog_id' => '1', 'url' => '']];
         if ($out['multisite'] && $db->tableExists($p . 'blogs')) {

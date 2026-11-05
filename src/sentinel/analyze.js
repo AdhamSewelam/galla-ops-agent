@@ -18,7 +18,7 @@ const byKey = (arr, f) => Object.fromEntries((arr || []).map((x) => [f(x), x]));
 export function snapshotOf(report) {
   const installs = {};
   for (const i of report.installs || []) {
-    const dbOk = !(i.errors || []).some((e) => String(e).startsWith('database'));
+    const dbOk = !i.db_skipped && !(i.errors || []).some((e) => String(e).startsWith('database'));
     installs[i.id] = {
       dbOk,
       admins: dbOk ? [...new Set((i.admins || []).map((a) => `${a.blog_id}:${a.login}`))].sort() : null,
@@ -70,7 +70,7 @@ export function analyzeReport(report, baseline = null, { expectedSentinelSha = n
     const base = baseline?.installs?.[i.id] || null;
     const W = (blogId) => wp(i, siteUrl(i, blogId));
     const content = `${i.path}/wp-content`;
-    const dbOk = !(i.errors || []).some((e) => String(e).startsWith('database'));
+    const dbOk = !i.db_skipped && !(i.errors || []).some((e) => String(e).startsWith('database'));
 
     for (const e of i.errors || []) add({ id: `error:${String(e).slice(0, 40)}`, install: i.id, type: 'sentinel_error', severity: 'medium', title: `Sentinel could not read part of ${i.id}: ${e}`, where: i.path,
       todo: 'Data unavailable for that section until this is fixed. Check the sentinel log in ~/galla-sentinel/state/sentinel.log.' });
