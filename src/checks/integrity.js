@@ -27,11 +27,19 @@ export const SPAM_RE = /\b(casino|slot gacor|slot online|judi online|togel|1xbet
 
 const JS_TYPES = new Set(['', 'text/javascript', 'application/javascript', 'module', 'text/ecmascript', 'rocketlazyloadscript', 'text/rocketlazyloadscript']);
 
-/** Normalise an inline script so per-request values (nonces, timestamps, prices, tokens) don't change its hash. */
+/** Normalise an inline script so per-request / per-product values don't change its hash:
+ *  nonces, Cloudflare ray ids, timestamps, prices, product names and other string DATA.
+ *  What is kept: the code structure, and the hostname of any URL inside a string, so a legit loader that
+ *  suddenly points at a new domain still shows up as a new script. */
+export const NORMALIZER_VERSION = 2;
 export function normalizeScript(code) {
   return String(code)
-    .replace(/(["']?[A-Za-z0-9_]*nonce[A-Za-z0-9_]*["']?\s*[:=]\s*)["'][^"']*["']/gi, '$1"N"')
-    .replace(/[A-Za-z0-9+/_-]{24,}={0,2}/g, 'T') // tokens, hashes, base64 blobs
+    .replace(/(["'`])((?:\\.|(?!\1)[^\\\n])*)\1/g, (_m, q, body) => {
+      const hosts = [...body.matchAll(/(?:https?:)?\\?\/\\?\/([a-z0-9.-]+\.[a-z]{2,})/gi)].map((m) => m[1].toLowerCase());
+      return hosts.length ? `"URL:${[...new Set(hosts)].sort().join(',')}"` : '"S"';
+    })
+    .replace(/\b[0-9a-f]{8,}\b/gi, 'H') // ray ids, hashes, hex blobs
+    .replace(/[A-Za-z0-9+/_-]{24,}={0,2}/g, 'T') // tokens, base64 blobs
     .replace(/\d+(?:\.\d+)?/g, '0') // numbers: prices, ids, timestamps
     .replace(/\s+/g, '')
     .trim();
@@ -91,17 +99,19 @@ export function analyzePage(html, { domain = '' } = {}) {
     const hit = mk.re.exec(html);
     if (hit) markers.push({ id: mk.id, why: mk.why, snippet: html.slice(Math.max(0, hit.index - 80), hit.index + 80).replace(/\s+/g, ' ') });
   }
-  return { inlineScripts, scriptDomains: [...scriptDomains].sort(), overlays, markers };
+  return { v: NORMALIZER_VERSION, inlineScripts, scriptDomains: [...scriptDomains].sort(), overlays, markers };
 }
 
 /** Compare a page analysis with its baseline. Markers always count; the rest only once a baseline exists. */
 export function compareToBaseline(analysis, baseline, { allowDomains = [] } = {}) {
   const hits = analysis.markers.map((m) => ({ type: 'marker', id: m.id, text: `Malware marker "${m.id}" in page HTML (${m.why})`, evidence: m.snippet }));
   if (!baseline) return hits;
+  // a baseline made with an older normaliser can't be compared script-by-script: skip that part until re-accepted
+  const sameVersion = (baseline.v || 1) === (analysis.v || 1);
   const knownScripts = new Set(baseline.inlineScripts.map((s) => s.hash));
   const knownDomains = new Set([...baseline.scriptDomains, ...allowDomains.map((d) => d.toLowerCase())]);
   const knownOverlays = new Set(baseline.overlays.map((o) => o.sig));
-  for (const s of analysis.inlineScripts) if (!knownScripts.has(s.hash)) hits.push({ type: 'script', id: s.hash, text: `Inline <script> not in the approved baseline (${s.len} chars)`, evidence: s.preview });
+  if (sameVersion) for (const s of analysis.inlineScripts) if (!knownScripts.has(s.hash)) hits.push({ type: 'script', id: s.hash, text: `Inline <script> not in the approved baseline (${s.len} chars)`, evidence: s.preview });
   for (const d of analysis.scriptDomains) {
     const own = allowDomains.some((a) => d === a || d.endsWith('.' + a));
     if (!knownDomains.has(d) && !own) hits.push({ type: 'domain', id: d, text: `Script loaded from unknown domain ${d}`, evidence: d });

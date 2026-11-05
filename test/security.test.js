@@ -177,3 +177,11 @@ test('secrets are redacted by key and by value', () => {
   assert.equal(redactText('this shop will open from noon'), 'this shop will open from noon');
   assert.match(redactText('Authorization: Basic Y2tfMTIzOmNzXzQ1Ng=='), /Basic \[redacted\]/);
 });
+
+test('page scan ignores per-request data (Cloudflare ray ids, GA product data) but not new URLs', () => {
+  const cf = (ray) => `(function(){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'${ray}',t:'MTczMDgwMDAwMC4wMDAwMDA='};";})()`;
+  assert.equal(normalizeScript(cf('8a1b2c3d4e5f6789')), normalizeScript(cf('99ff00aa11bb22cc')));
+  const gtag = (id, name, price) => `var glaGtagData = {"products":{"${id}":{"name":"${name}","price":${price}}}};`;
+  assert.equal(normalizeScript(gtag(29042, 'Diamond Filigree Floral Ring', 60900)), normalizeScript(gtag(30173, 'Diamond Ring Band', 12000)));
+  assert.notEqual(normalizeScript('s.src="https://www.googletagmanager.com/gtm.js"'), normalizeScript('s.src="https://evil-cdn.top/gtm.js"'));
+});
