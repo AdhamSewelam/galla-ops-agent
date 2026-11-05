@@ -36,7 +36,9 @@ export function createMailer(config, db, { transport = undefined } = {}) {
       return { sent: false };
     }
     try {
-      await t.sendMail({ from: config.EMAIL_FROM || config.SMTP_USER, to: config.OWNER_EMAIL, subject: fullSubject, text: safeText, html: wrap(safeHtml) });
+      const ccFor = (config.EMAIL_CC_PREFIXES || '').split(',').map((x) => x.trim().toUpperCase()).filter(Boolean);
+      const cc = config.EMAIL_CC && ccFor.includes(prefix) ? config.EMAIL_CC.split(',').map((x) => x.trim()).filter((x) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x)) : [];
+      await t.sendMail({ from: config.EMAIL_FROM || config.SMTP_USER, to: config.OWNER_EMAIL, ...(cc.length ? { cc } : {}), subject: fullSubject, text: safeText, html: wrap(safeHtml) });
       audit(db, { action: 'email_sent', target: fullSubject });
       return { sent: true };
     } catch (err) {

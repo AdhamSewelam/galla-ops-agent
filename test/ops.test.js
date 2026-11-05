@@ -261,3 +261,16 @@ test('office simulator state comes only from records', async () => {
   assert.equal(byId.ledger.activityText, 'Not connected (no read-only WooCommerce keys)');
   assert.equal(st.departments.find((d) => d.id === 'finance').kpi, 'Not connected');
 });
+
+test('EMAIL_CC gets only the configured email types', async () => {
+  const { createMailer } = await import('../src/email.js');
+  const { openMemoryDb } = await import('../src/db.js');
+  const { makeConfig } = await import('./helpers.js');
+  const config = makeConfig({ EMAIL_CC: 'team@example.com', EMAIL_CC_PREFIXES: 'DAILY,WEEKLY SEO' });
+  const sent = [];
+  const m = createMailer({ ...config, features: { ...config.features, email: true } }, openMemoryDb(), { transport: { sendMail: async (x) => sent.push(x) } });
+  await m.send({ prefix: 'WEEKLY SEO', subject: 's', html: '', text: '' });
+  await m.send({ prefix: 'SECURITY', subject: 's', html: '', text: '' });
+  assert.deepEqual(sent[0].cc, ['team@example.com']);
+  assert.equal(sent[1].cc, undefined);
+});

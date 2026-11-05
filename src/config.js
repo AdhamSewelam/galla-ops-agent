@@ -20,6 +20,9 @@ const schema = z.object({
 
   OWNER_EMAIL: z.string().email().default('adham.h.sewelam@gmail.com'),
   OWNER_NAME: z.string().default('Adham'),
+  // Extra recipients (comma-separated) and which email types they get. Security/urgent mail stays owner-only by default.
+  EMAIL_CC: z.string().optional(),
+  EMAIL_CC_PREFIXES: z.string().default('DAILY,WEEKLY SEO'),
 
   // Outbound email (Gmail app password)
   SMTP_HOST: z.string().optional(),
