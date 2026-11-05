@@ -165,8 +165,18 @@ Return JSON: {"summary": "2-3 sentences", "fixes": [{"page": "...", "problem": "
   }
 
   async function run() {
+    // Brands run in parallel and independently: one brand's crash or slow PageSpeed never
+    // stops the other brands' emails.
+    const settled = await Promise.allSettled(registry.brands.map((b) => reviewBrand(b)));
     const out = [];
-    for (const b of registry.brands) out.push(await reviewBrand(b));
+    for (const [i, r] of settled.entries()) {
+      const b = registry.brands[i];
+      if (r.status === 'fulfilled') { out.push(r.value); continue; }
+      const error = String(r.reason?.message || r.reason).slice(0, 500);
+      audit(db, { actor: 'scout', action: 'seo_review_failed', target: b.id, detail: { error }, outcome: 'error' });
+      await mailer.send({ brand: b.short, prefix: 'WEEKLY SEO', subject: 'review could not finish', html: `<p>Scout could not finish this week's SEO review for ${esc(b.name)}.</p><p>Error: <code>${esc(error)}</code></p><p>Re-run: <code>node --env-file=.env src/index.js run seo</code></p>`, text: `SEO review failed: ${error}` }).catch(() => {});
+      out.push({ brand: b.id, error });
+    }
     return out;
   }
   return { run, reviewBrand };
