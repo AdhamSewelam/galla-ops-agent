@@ -204,6 +204,7 @@ export function analyzeReport(report, baseline = null, { expectedSentinelSha = n
     }
     for (const { k, isNew } of changedMap(Object.fromEntries((i.wp_content_root || []).map((f) => [f.file, f.sha256])), base?.contentRoot)) {
       if (k in (Object.fromEntries((i.dropins || []).map((d) => [d.file, 1])))) continue; // reported as drop-in
+      if (/\.log$/i.test(k)) continue; // debug.log etc. change constantly; not code
       if ((i.hidden_php || []).includes(k) && !HIDDEN_PHP_IGNORE.test(k)) continue; // reported as hidden PHP
       const full = `${content}/${k}`;
       B({ id: `croot:${k}`, install: i.id, type: 'content_root', severity: /\.php\d?$/i.test(k) ? 'critical' : 'high', title: `${!hasBaseline ? 'Existing' : isNew ? 'New' : 'Changed'} file in wp-content root: ${k}`, where: full,

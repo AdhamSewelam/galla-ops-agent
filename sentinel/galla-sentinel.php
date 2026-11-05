@@ -166,7 +166,8 @@ final class Cache {
 }
 
 function scan_markers(string $path, SplFileInfo $f, Cache $cache): array {
-    return $cache->get($path, $f, 'mk', function () use ($path, $f) {
+    // cache key includes the marker list, so adding/removing a marker re-scans every file once
+    return $cache->get($path, $f, 'mk' . substr(md5(implode('|', MARKERS)), 0, 8), function () use ($path, $f) {
         if ($f->getSize() > MAX_SCAN_BYTES) return ['__too_big__'];
         $s = @file_get_contents($path);
         if ($s === false) return [];
