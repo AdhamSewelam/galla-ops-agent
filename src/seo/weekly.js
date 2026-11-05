@@ -79,7 +79,7 @@ export function createSeoReview({ config, db, registry, claude, mailer, fetchImp
     if (!b.gsc) return { unavailable: 'Not connected (no gsc property in brands.json)' };
     try {
       const creds = JSON.parse(Buffer.from(config.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64, 'base64').toString('utf8'));
-      const auth = new google.auth.GoogleAuth({ credentials: creds, scopes: ['https://www.googleapis.com/auth/webmasters.readonly'] });
+      const auth = new google.auth.JWT({ email: creds.client_email, key: creds.private_key, scopes: ['https://www.googleapis.com/auth/webmasters.readonly'] });
       const sc = google.searchconsole({ version: 'v1', auth });
       const day = (n) => new Date(Date.now() - n * 86400_000).toISOString().slice(0, 10);
       const q = async (start, end, dims, rowLimit = 25) => (await sc.searchanalytics.query({ siteUrl: b.gsc, requestBody: { startDate: start, endDate: end, dimensions: dims, rowLimit } })).data.rows || [];
