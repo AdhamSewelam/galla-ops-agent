@@ -1,0 +1,63 @@
+{
+  "brands": [
+    {
+      "id": "jbg",
+      "name": "Jewels by Galla",
+      "short": "JBG",
+      "domain": "jewelsbygalla.com",
+      "host": "hostinger-u137384117",
+      "cloudflare": false,
+      "checkRoot": false,
+      "sites": [
+        {
+          "id": "eg", "label": "Egypt", "path": "/eg/",
+          "locales": [ { "lang": "en", "path": "/eg/en/" }, { "lang": "ar", "path": "/eg/ar/" } ],
+          "shopPath": "shop/", "checkoutPath": "checkout/", "sitemap": "sitemap_index.xml",
+          "woo": { "keyEnv": "WC_JBG_EG_KEY", "secretEnv": "WC_JBG_EG_SECRET", "auth": "header" }
+        },
+        {
+          "id": "ae", "label": "UAE", "path": "/ae/",
+          "locales": [ { "lang": "en", "path": "/ae/en/" }, { "lang": "ar", "path": "/ae/ar/" } ],
+          "woo": { "keyEnv": "WC_JBG_AE_KEY", "secretEnv": "WC_JBG_AE_SECRET" }
+        }
+      ],
+      "skuParity": { "sites": ["eg", "ae"], "exemptCategoryIds": { "eg": [779] } },
+      "smtp": { "domain": "jewelsbygalla.com", "dkimSelectors": ["default", "hostingermail1", "hostingermail2"] },
+      "gsc": "sc-domain:jewelsbygalla.com",
+      "integrity": { "allowScriptDomains": ["googletagmanager.com", "google-analytics.com", "connect.facebook.net", "www.gstatic.com", "www.google.com"] }
+    },
+    {
+      "id": "onecarat",
+      "name": "One Carat",
+      "short": "OneCarat",
+      "domain": "onecaratjewelry.com",
+      "host": "hostinger-u137384117",
+      "sites": [
+        { "id": "eg", "label": "Egypt", "path": "/eg/", "woo": { "keyEnv": "WC_ONECARAT_EG_KEY", "secretEnv": "WC_ONECARAT_EG_SECRET" } },
+        { "id": "ae", "label": "UAE", "path": "/ae/", "woo": { "keyEnv": "WC_ONECARAT_AE_KEY", "secretEnv": "WC_ONECARAT_AE_SECRET" } }
+      ],
+      "skuParity": { "sites": ["eg", "ae"], "exemptCategoryIds": {} },
+      "smtp": { "domain": "onecaratjewelry.com", "dkimSelectors": ["default", "hostingermail1", "hostingermail2"] },
+      "gsc": "sc-domain:onecaratjewelry.com",
+      "integrity": { "allowScriptDomains": ["googletagmanager.com", "google-analytics.com", "connect.facebook.net"] }
+    },
+    {
+      "id": "elgalla",
+      "name": "El Galla",
+      "short": "ElGalla",
+      "domain": "elgalla.com",
+      "host": "vps-srv1108252",
+      "cloudflare": true,
+      "sites": [
+        { "id": "main", "label": "El Galla", "path": "/", "woo": { "keyEnv": "WC_ELGALLA_KEY", "secretEnv": "WC_ELGALLA_SECRET" } }
+      ],
+      "smtp": { "domain": "elgalla.com", "host": "smtp.stackmail.com", "port": 465, "user": "admin@elgalla.com", "passEnv": "SMTP_ELGALLA_PASS", "dkimSelectors": ["default", "stackmail"] },
+      "gsc": "sc-domain:elgalla.com",
+      "integrity": { "allowScriptDomains": ["googletagmanager.com", "google-analytics.com", "connect.facebook.net", "static.cloudflareinsights.com", "cdnjs.cloudflare.com"] }
+    }
+  ],
+  "hosts": [
+    { "id": "hostinger-u137384117", "label": "Hostinger shared u137384117", "kind": "shared", "secretEnv": "SENTINEL_SECRET_SHARED", "brands": ["jbg", "onecarat"] },
+    { "id": "vps-srv1108252", "label": "Hostinger VPS srv1108252", "kind": "vps", "secretEnv": "SENTINEL_SECRET_VPS", "brands": ["elgalla"] }
+  ]
+}

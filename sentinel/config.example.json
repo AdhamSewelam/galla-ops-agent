@@ -1,0 +1,12 @@
+{
+  "host_id": "hostinger-u137384117",
+  "endpoint": "https://galla-ops.elgalla.com/ingest",
+  "secret": "PASTE-THE-SENTINEL_SECRET_SHARED-VALUE-HERE (openssl rand -hex 32)",
+  "state_dir": "/home/u137384117/galla-sentinel/state",
+  "check_root_owned": false,
+  "installs": [
+    { "id": "jbg", "path": "/home/u137384117/domains/jewelsbygalla.com/public_html" },
+    { "id": "jbg-multisite", "path": "/home/u137384117/domains/jewelsbygalla.com/public_html/multisite" },
+    { "id": "onecarat", "path": "/home/u137384117/domains/onecaratjewelry.com/public_html" }
+  ]
+}
