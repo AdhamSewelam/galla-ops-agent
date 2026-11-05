@@ -17,9 +17,10 @@ If the dashboard ever shows "Cloudflare blocked the monitor", check **Security �
 Bot Fight Mode can't be skipped by a rule).
 
 ## 3. Install
+Do §11 (deploy key) first: the clone below uses its `github-gallaops` host alias.
 ```bash
 cd /opt
-git clone git@github-gallaops:AdhamSewelam/galla-ops-agent.git   # read-only deploy key, see §8
+git clone git@github-gallaops:AdhamSewelam/galla-ops-agent.git
 cd galla-ops-agent
 npm ci --omit=dev
 cp .env.example .env && chmod 600 .env
