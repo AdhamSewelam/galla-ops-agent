@@ -12,6 +12,7 @@ import { brandStatus, renderDaily } from '../src/reports/daily.js';
 import { createKeeper } from '../src/checks/keeper.js';
 import { createSeoReview, seoIssues } from '../src/seo/weekly.js';
 import { detectIssues } from '../src/team/hr.js';
+import { createTeam } from '../src/team/chat.js';
 import { createServer } from '../src/server.js';
 import { signReport } from '../src/sentinel/ingest.js';
 import { createSentinelJob } from '../src/sentinel/job.js';
@@ -273,4 +274,17 @@ test('EMAIL_CC gets only the configured email types', async () => {
   await m.send({ prefix: 'SECURITY', subject: 's', html: '', text: '' });
   assert.deepEqual(sent[0].cc, ['team@example.com']);
   assert.equal(sent[1].cc, undefined);
+});
+
+test('team meeting: start + owner message build the agent briefs without crashing and post replies', async () => {
+  const { config, db, registry: reg } = setup();
+  db.prepare("INSERT INTO incidents(key, brand, category, severity, status, title, first_seen, last_seen) VALUES ('t:home','jbg','uptime','high','open','Home page down', strftime('%Y-%m-%dT%H:%M:%fZ','now'), strftime('%Y-%m-%dT%H:%M:%fZ','now'))").run();
+  const prompts = [];
+  const claude = { json: async (prompt) => { prompts.push(prompt); return { messages: [{ agent: 'sentinel', text: 'One page is down, looking into it.' }] }; } };
+  const team = createTeam({ config, db, claude, registry: reg });
+  const { id } = await team.startMeeting('');
+  const out = await team.meetingSay(id, 'hi');
+  assert.equal(out[0].author, 'owner');
+  assert.ok(out.some((m) => m.author === 'sentinel'));
+  assert.match(prompts[1], /Home page down \(open\)/);
 });

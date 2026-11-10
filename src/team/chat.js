@@ -92,9 +92,18 @@ Return JSON: {"reply": "your answer", "lesson": null or "one-line rule"}`,
     return addMessage(db, { thread, author: 'harmony', text: "The team didn't give a usable answer this time. Please send that again.", kind: 'system' });
   };
   // Meetings get a compact view of each record so the prompt stays small and fast.
-  const compactBriefs = () => Object.fromEntries(Object.entries(teamBriefs({ config, db, registry, jobState })).map(([id, b]) => [id, {
-    role: b.role, statusNow: b.statusNow, lastRun: b.lastRun, openTasks: b.openTasks.slice(0, 4).map((t) => `${t.title} (${t.status})`),
-    jobStats: b.jobStatsLast30d, facts: JSON.stringify(b.facts).slice(0, 900), playbook: b.playbook,
+  // agentBrief() has no lastRun/openTasks of its own, so derive them here from what it does have.
+  const latestRun = (stats) => Object.entries(stats || {})
+    .filter(([, s]) => s?.lastRun)
+    .map(([job, s]) => ({ job, ts: s.lastRun.ts, outcome: s.lastRun.outcome }))
+    .sort((a, b) => String(b.ts).localeCompare(String(a.ts)))[0] || null;
+  const openTasksOf = (facts) => [
+    ...(Array.isArray(facts?.incidents) ? facts.incidents : []).filter((i) => i?.status === 'open').map((i) => `${i.brand ? `${i.brand} ` : ''}${i.title} (${i.acknowledged_at ? 'acknowledged' : 'open'})`),
+    ...(Array.isArray(facts?.openHrIssues) ? facts.openHrIssues : []).map((i) => `${i.title} (open team issue)`),
+  ].slice(0, 4);
+  const compactBriefs = () => Object.fromEntries(Object.entries(teamBriefs({ config, db, registry, jobState })).filter(([, b]) => b).map(([id, b]) => [id, {
+    role: b.role, statusNow: b.statusNow, lastRun: latestRun(b.jobStatsLast30d), openTasks: openTasksOf(b.facts),
+    jobStats: b.jobStatsLast30d, facts: JSON.stringify(b.facts ?? {}).slice(0, 900), playbook: b.playbook,
   }]));
 
   /** Starts a meeting: every agent reports from its record, Harmony closes with HR notes. */
